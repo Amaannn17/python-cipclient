@@ -48,7 +48,7 @@ class SendThread(threading.Thread):
                     time_asleep_heartbeat = 0
 
                 time_asleep_buttons += 0.01
-                if time_asleep_buttons >= 0.50 and len(self.cip.buttons_pressed):
+                if time_asleep_buttons >= 0.50 and self.cip.buttons_pressed:
                     with self.cip.buttons_lock:
                         for join in self.cip.buttons_pressed:
                             try:
