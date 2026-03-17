@@ -44,7 +44,7 @@ class SendThread(threading.Thread):
             if self.cip.connected is True and self.cip.restart_connection is False:
                 time_asleep_heartbeat += 0.01
                 if time_asleep_heartbeat >= 15:
-                    self.cip.tx_queue.put(b"\x0D\x00\x02\x00\x00")
+                    self.cip.tx_queue.put(b"\x0d\x00\x02\x00\x00")
                     time_asleep_heartbeat = 0
 
                 time_asleep_buttons += 0.01
@@ -137,50 +137,47 @@ class EventThread(threading.Thread):
         _logger.debug("started")
 
         while not self._stop_event.is_set():
-            if not self.cip.event_queue.empty():
-                direction, sigtype, join, value = self.cip.event_queue.get()
+            try:
+                direction, sigtype, join, value = self.cip.event_queue.get(timeout=0.1)
+            except queue.Empty:
+                continue
 
-                with self.cip.join_lock:
-                    try:
-                        self.cip.join[direction][sigtype[0]][join][0] = value
-                        for callback in self.cip.join[direction][sigtype[0]][join][1:]:
-                            callback(sigtype[0], join, value)
-                    except KeyError:
-                        self.cip.join[direction][sigtype[0]][join] = [
-                            value,
-                        ]
-                _logger.debug(f"  : {sigtype} {direction} {join} = {value}")
+            with self.cip.join_lock:
+                try:
+                    self.cip.join[direction][sigtype[0]][join][0] = value
+                    for callback in self.cip.join[direction][sigtype[0]][join][1:]:
+                        callback(sigtype[0], join, value)
+                except KeyError:
+                    self.cip.join[direction][sigtype[0]][join] = [
+                        value,
+                    ]
+            _logger.debug(f"  : {sigtype} {direction} {join} = {value}")
 
-                if direction == "out":
-                    tx = bytearray(self.cip._cip_packet[sigtype])
-                    cip_join = join - 1
-                    if sigtype[0] == "d":
-                        packed_join = (cip_join // 256) + ((cip_join % 256) * 256)
-                        if value == 0:
-                            packed_join |= 0x80
-                        tx += packed_join.to_bytes(2, "big")
-                        if sigtype == "db":
-                            with self.cip.buttons_lock:
-                                if value == 1:
-                                    self.cip.buttons_pressed[join] = tx
-                                elif join in self.cip.buttons_pressed:
-                                    self.cip.buttons_pressed.pop(join)
-                    elif sigtype == "a":
-                        tx += cip_join.to_bytes(2, "big")
-                        tx += value.to_bytes(2, "big")
-                    elif sigtype == "s":
-                        tx[2] = 8 + len(value)
-                        tx[6] = 4 + len(value)
-                        tx += cip_join.to_bytes(2, "big")
-                        tx += b"\x03"
-                        tx += bytearray(value, "ascii")
-                    if (
-                        self.cip.connected is True
-                        and self.cip.restart_connection is False
-                    ):
-                        self.cip.tx_queue.put(tx)
-
-            time.sleep(0.001)
+            if direction == "out":
+                tx = bytearray(self.cip._cip_packet[sigtype])
+                cip_join = join - 1
+                if sigtype[0] == "d":
+                    packed_join = (cip_join // 256) + ((cip_join % 256) * 256)
+                    if value == 0:
+                        packed_join |= 0x80
+                    tx += packed_join.to_bytes(2, "big")
+                    if sigtype == "db":
+                        with self.cip.buttons_lock:
+                            if value == 1:
+                                self.cip.buttons_pressed[join] = tx
+                            elif join in self.cip.buttons_pressed:
+                                self.cip.buttons_pressed.pop(join)
+                elif sigtype == "a":
+                    tx += cip_join.to_bytes(2, "big")
+                    tx += value.to_bytes(2, "big")
+                elif sigtype == "s":
+                    tx[2] = 8 + len(value)
+                    tx[6] = 4 + len(value)
+                    tx += cip_join.to_bytes(2, "big")
+                    tx += b"\x03"
+                    tx += bytearray(value, "ascii")
+                if self.cip.connected is True and self.cip.restart_connection is False:
+                    self.cip.tx_queue.put(tx)
 
         _logger.debug("stopped")
 
@@ -422,7 +419,7 @@ class CIPSocketClient:
                     # end-of-query
                     _logger.debug("  End-of-query")
                     self.tx_queue.put(b"\x05\x00\x05\x00\x00\x02\x03\x1d")
-                    self.tx_queue.put(b"\x0D\x00\x02\x00\x00")
+                    self.tx_queue.put(b"\x0d\x00\x02\x00\x00")
                     self.connected = True
                     with self.join_lock:
                         for sigtype, joins in self.join["out"].items():
