@@ -24,12 +24,24 @@ class SendThread(threading.Thread):
         """Start the CIP outgoing packet processing thread."""
         _logger.debug("started")
 
-        time_asleep_heartbeat = 0
-        time_asleep_buttons = 0
+        last_heartbeat = time.monotonic()
+        last_button_repeat = time.monotonic()
 
         while not self._stop_event.is_set():
-            while not self.cip.tx_queue.empty():
-                tx = self.cip.tx_queue.get()
+            now = time.monotonic()
+
+            if self.cip.connected is True and self.cip.restart_connection is False:
+                timeout = 15 - (now - last_heartbeat)
+                if len(self.cip.buttons_pressed) > 0:
+                    timeout = min(timeout, 0.5 - (now - last_button_repeat))
+                timeout = max(0, min(1.0, timeout))
+            else:
+                timeout = 1.0
+                last_heartbeat = now
+                last_button_repeat = now
+
+            try:
+                tx = self.cip.tx_queue.get(timeout=timeout)
                 if self.cip.restart_connection is False:
                     _logger.debug(f"TX: <{str(binascii.hexlify(tx), 'ascii')}>")
                     try:
@@ -37,28 +49,42 @@ class SendThread(threading.Thread):
                     except socket.error:
                         with self.cip.restart_lock:
                             self.cip.restart_connection = True
-                    time_asleep_heartbeat = 0
+                    last_heartbeat = time.monotonic()
 
-            time.sleep(0.01)
-
-            if self.cip.connected is True and self.cip.restart_connection is False:
-                time_asleep_heartbeat += 0.01
-                if time_asleep_heartbeat >= 15:
-                    self.cip.tx_queue.put(b"\x0D\x00\x02\x00\x00")
-                    time_asleep_heartbeat = 0
-
-                time_asleep_buttons += 0.01
-                if time_asleep_buttons >= 0.50 and len(self.cip.buttons_pressed):
-                    with self.cip.buttons_lock:
-                        for join in self.cip.buttons_pressed:
+                while True:
+                    try:
+                        tx = self.cip.tx_queue.get_nowait()
+                        if self.cip.restart_connection is False:
+                            _logger.debug(f"TX: <{str(binascii.hexlify(tx), 'ascii')}>")
                             try:
-                                if self.cip.join["out"]["d"][join][0] == 1:
-                                    self.cip.tx_queue.put(
-                                        self.cip.buttons_pressed[join]
-                                    )
-                            except KeyError:
-                                pass
-                    time_asleep_buttons = 0
+                                self.cip.socket.sendall(tx)
+                            except socket.error:
+                                with self.cip.restart_lock:
+                                    self.cip.restart_connection = True
+                            last_heartbeat = time.monotonic()
+                    except queue.Empty:
+                        break
+            except queue.Empty:
+                pass
+
+            now = time.monotonic()
+            if self.cip.connected is True and self.cip.restart_connection is False:
+                if now - last_heartbeat >= 15:
+                    self.cip.tx_queue.put(b"\x0d\x00\x02\x00\x00")
+                    last_heartbeat = now
+
+                if now - last_button_repeat >= 0.5:
+                    if len(self.cip.buttons_pressed):
+                        with self.cip.buttons_lock:
+                            for join in self.cip.buttons_pressed:
+                                try:
+                                    if self.cip.join["out"]["d"][join][0] == 1:
+                                        self.cip.tx_queue.put(
+                                            self.cip.buttons_pressed[join]
+                                        )
+                                except KeyError:
+                                    pass
+                    last_button_repeat = now
 
         _logger.debug("stopped")
 
@@ -137,8 +163,8 @@ class EventThread(threading.Thread):
         _logger.debug("started")
 
         while not self._stop_event.is_set():
-            if not self.cip.event_queue.empty():
-                direction, sigtype, join, value = self.cip.event_queue.get()
+            try:
+                direction, sigtype, join, value = self.cip.event_queue.get(timeout=0.1)
 
                 with self.cip.join_lock:
                     try:
@@ -179,8 +205,8 @@ class EventThread(threading.Thread):
                         and self.cip.restart_connection is False
                     ):
                         self.cip.tx_queue.put(tx)
-
-            time.sleep(0.001)
+            except queue.Empty:
+                pass
 
         _logger.debug("stopped")
 
@@ -422,7 +448,7 @@ class CIPSocketClient:
                     # end-of-query
                     _logger.debug("  End-of-query")
                     self.tx_queue.put(b"\x05\x00\x05\x00\x00\x02\x03\x1d")
-                    self.tx_queue.put(b"\x0D\x00\x02\x00\x00")
+                    self.tx_queue.put(b"\x0d\x00\x02\x00\x00")
                     self.connected = True
                     with self.join_lock:
                         for sigtype, joins in self.join["out"].items():
