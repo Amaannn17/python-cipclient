@@ -396,21 +396,35 @@ class CIPSocketClient:
             _logger.debug("  Heartbeat")
         elif ciptype == 0x05:
             # data
+            if length < 4:
+                _logger.warning("  Data packet too short")
+                return
+
             datatype = payload[3]
 
             if datatype == 0x00:
                 # digital join
+                if length < 6:
+                    _logger.warning("  Digital join packet too short")
+                    return
                 join = (((payload[5] & 0x7F) << 8) | payload[4]) + 1
                 state = ((payload[5] & 0x80) >> 7) ^ 0x01
                 self.event_queue.put(("in", "d", join, state))
                 _logger.debug(f"  Incoming Digital Join {join:04} = {state}")
             elif datatype == 0x14:
+                # analog join
+                if length < 8:
+                    _logger.warning("  Analog join packet too short")
+                    return
                 join = ((payload[4] << 8) | payload[5]) + 1
                 value = (payload[6] << 8) + payload[7]
                 self.event_queue.put(("in", "a", join, value))
                 _logger.debug(f"  Incoming Analog Join {join:04} = {value}")
             elif datatype == 0x03:
                 # update request
+                if length < 5:
+                    _logger.warning("  Update request packet too short")
+                    return
                 update_request_type = payload[4]
                 if update_request_type == 0x00:
                     # standard update request
@@ -436,6 +450,9 @@ class CIPSocketClient:
                     _logger.debug("! We don't know what to do with this update request")
             elif datatype == 0x08:
                 # date/time
+                if length < 10:
+                    _logger.warning("  Date/time packet too short")
+                    return
                 cip_date = str(binascii.hexlify(payload[4:]), "ascii")
                 _logger.debug(
                     f"  Received date/time from control processor <"
@@ -447,6 +464,9 @@ class CIPSocketClient:
                 # unexpected data packet
                 _logger.debug("! We don't know what to do with this data")
         elif ciptype == 0x12:
+            if length < 7:
+                _logger.warning("  Serial join packet too short")
+                return
             join = ((payload[5] << 8) | payload[6]) + 1
             value = str(payload[8:], "ascii")
             self.event_queue.put(("in", "s", join, value))
