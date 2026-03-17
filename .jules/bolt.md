@@ -1,0 +1,3 @@
+## 2024-03-17 - Eliminate thread busy-waiting loops with queue timeouts
+**Learning:** The background threading loops in python-cipclient (e.g., `SendThread`) previously used `while not empty` combined with short polling `time.sleep(0.01)` to manage heartbeats and event dispatch. This polling pattern creates unnecessary CPU wake-ups, using ~0.10s CPU time per 10s of background idle running.
+**Action:** Replace `time.sleep()`-based manual polling loops with a dynamic calculation for the next event and a blocking `queue.get(timeout=timeout)`. This drops CPU overhead to near 0 and improves timing accuracy for background thread intervals.
