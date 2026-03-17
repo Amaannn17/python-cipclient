@@ -30,7 +30,7 @@ class SendThread(threading.Thread):
         while not self._stop_event.is_set():
             while not self.cip.tx_queue.empty():
                 tx = self.cip.tx_queue.get()
-                if self.cip.restart_connection is False:
+                if not self.cip.restart_connection:
                     _logger.debug(f"TX: <{str(binascii.hexlify(tx), 'ascii')}>")
                     try:
                         self.cip.socket.sendall(tx)
@@ -41,7 +41,7 @@ class SendThread(threading.Thread):
 
             time.sleep(0.01)
 
-            if self.cip.connected is True and self.cip.restart_connection is False:
+            if self.cip.connected and not self.cip.restart_connection:
                 time_asleep_heartbeat += 0.01
                 if time_asleep_heartbeat >= 15:
                     self.cip.tx_queue.put(b"\x0d\x00\x02\x00\x00")
@@ -83,7 +83,7 @@ class ReceiveThread(threading.Thread):
 
         while not self._stop_event.is_set():
             try:
-                if self.cip.restart_connection is False:
+                if not self.cip.restart_connection:
                     rx = self.cip.socket.recv(4096)
                     _logger.debug(f'RX: <{str(binascii.hexlify(rx), "ascii")}>')
 
@@ -176,7 +176,7 @@ class EventThread(threading.Thread):
                     tx += cip_join.to_bytes(2, "big")
                     tx += b"\x03"
                     tx += bytearray(value, "ascii")
-                if self.cip.connected is True and self.cip.restart_connection is False:
+                if self.cip.connected and not self.cip.restart_connection:
                     self.cip.tx_queue.put(tx)
 
         _logger.debug("stopped")
@@ -210,7 +210,7 @@ class ConnectionThread(threading.Thread):
                 self.cip.socket.connect((self.cip.host, self.cip.port))
             except socket.error:
                 self.cip.socket.close()
-                if warning_posted is False:
+                if not warning_posted:
                     _logger.debug(
                         f"attempting to connect to {self.cip.host}:{self.cip.port}, "
                         "no success yet"
@@ -228,7 +228,7 @@ class ConnectionThread(threading.Thread):
                 self.cip.restart_connection = False
                 while (
                     not self._stop_event.is_set()
-                    and self.cip.restart_connection is False
+                    and not self.cip.restart_connection
                 ):
                     time.sleep(1)
                 if not self._stop_event.is_set():
@@ -355,7 +355,7 @@ class CIPSocketClient:
 
     def update_request(self):
         """Send an update request to the control processor."""
-        if self.connected is True:
+        if self.connected:
             self.tx_queue.put(b"\x05\x00\x05\x00\x00\x02\x03\x00")
         else:
             _logger.debug("update_request(): not currently connected")
