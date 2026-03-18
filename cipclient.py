@@ -158,7 +158,9 @@ class EventThread(threading.Thread):
 
         while not self._stop_event.is_set():
             try:
-                direction, sigtype, join, value = self.cip.event_queue.get(timeout=0.1)
+                # Use a 1.0s timeout to reduce idle CPU wakeups. This won't delay
+                # actual events, as queue.get() returns immediately when data arrives.
+                direction, sigtype, join, value = self.cip.event_queue.get(timeout=1.0)
             except queue.Empty:
                 continue
 
