@@ -158,7 +158,10 @@ class EventThread(threading.Thread):
 
         while not self._stop_event.is_set():
             try:
-                direction, sigtype, join, value = self.cip.event_queue.get(timeout=0.1)
+                # ⚡ Bolt Optimization: Increased queue timeout from 0.1s to 1.0s.
+                # This reduces CPU wakeups by 90% when idle while still allowing
+                # thread shutdown to be responsive within 1.0 second.
+                direction, sigtype, join, value = self.cip.event_queue.get(timeout=1.0)
             except queue.Empty:
                 continue
 
