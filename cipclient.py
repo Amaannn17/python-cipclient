@@ -24,41 +24,61 @@ class SendThread(threading.Thread):
         """Start the CIP outgoing packet processing thread."""
         _logger.debug("started")
 
-        time_asleep_heartbeat = 0
-        time_asleep_buttons = 0
+        last_heartbeat_time = time.monotonic()
+        last_buttons_time = time.monotonic()
 
         while not self._stop_event.is_set():
-            while not self.cip.tx_queue.empty():
-                tx = self.cip.tx_queue.get()
-                if self.cip.restart_connection is False:
+            now = time.monotonic()
+
+            if self.cip.connected and not self.cip.restart_connection:
+                # Calculate dynamic timeout based on next scheduled event
+                time_until_heartbeat = max(0, 15.0 - (now - last_heartbeat_time))
+                if self.cip.buttons_pressed:
+                    time_until_buttons = max(0, 0.5 - (now - last_buttons_time))
+                else:
+                    time_until_buttons = float("inf")
+
+                timeout = min(time_until_heartbeat, time_until_buttons)
+                # Cap at 1.0s to ensure responsiveness to thread stop events
+                timeout = min(timeout, 1.0)
+            else:
+                # If disconnected, just wait 1.0s for the next check/event
+                timeout = 1.0
+                last_heartbeat_time = now
+                last_buttons_time = now
+
+            try:
+                tx = self.cip.tx_queue.get(timeout=timeout)
+                if not self.cip.restart_connection:
                     _logger.debug(f"TX: <{str(binascii.hexlify(tx), 'ascii')}>")
                     try:
                         self.cip.socket.sendall(tx)
                     except socket.error:
                         with self.cip.restart_lock:
                             self.cip.restart_connection = True
-                    time_asleep_heartbeat = 0
+                    # Reset heartbeat timer since we just sent data
+                    last_heartbeat_time = time.monotonic()
+            except queue.Empty:
+                pass
 
-            time.sleep(0.01)
-
-            if self.cip.connected is True and self.cip.restart_connection is False:
-                time_asleep_heartbeat += 0.01
-                if time_asleep_heartbeat >= 15:
+            if self.cip.connected and not self.cip.restart_connection:
+                now = time.monotonic()
+                if now - last_heartbeat_time >= 15.0:
                     self.cip.tx_queue.put(b"\x0d\x00\x02\x00\x00")
-                    time_asleep_heartbeat = 0
+                    last_heartbeat_time = now
 
-                time_asleep_buttons += 0.01
-                if time_asleep_buttons >= 0.50 and len(self.cip.buttons_pressed):
-                    with self.cip.buttons_lock:
-                        for join in self.cip.buttons_pressed:
-                            try:
-                                if self.cip.join["out"]["d"][join][0] == 1:
-                                    self.cip.tx_queue.put(
-                                        self.cip.buttons_pressed[join]
-                                    )
-                            except KeyError:
-                                pass
-                    time_asleep_buttons = 0
+                if now - last_buttons_time >= 0.5:
+                    if self.cip.buttons_pressed:
+                        with self.cip.buttons_lock:
+                            for join in self.cip.buttons_pressed:
+                                try:
+                                    if self.cip.join["out"]["d"][join][0] == 1:
+                                        self.cip.tx_queue.put(
+                                            self.cip.buttons_pressed[join]
+                                        )
+                                except KeyError:
+                                    pass
+                    last_buttons_time = now
 
         _logger.debug("stopped")
 
