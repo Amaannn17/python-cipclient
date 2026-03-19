@@ -1,3 +1,7 @@
 ## 2024-05-17 - CPU spin loop due to dynamic timer miscalculation during disconnection
 **Learning:** When transitioning a polling loop that tracks state over time (like heartbeat or button repeat intervals) to an event-driven `queue.get(timeout=...)` model, you MUST update the state variables (timers) even when the condition for taking action (e.g., `is_connected()`) is false. If the condition fails, and timers are skipped, the calculated `time_until_next_event` can hit 0. A queue timeout of 0 becomes completely non-blocking, causing a 100% CPU spin loop while disconnected.
 **Action:** When calculating dynamic timeouts based on historical timestamps, always ensure a default fallback timeout (e.g., `1.0s`) is applied and state timestamps are reset if the normal processing block is bypassed due to edge cases like disconnections.
+
+## 2024-05-17 - Excessive wakeups in EventThread queue polling
+**Learning:** The EventThread was waking up 10 times per second while idle just to check the shutdown flag `self._stop_event.is_set()`. This unnecessary wake-up rate consumes CPU without adding value since `queue.get` immediately returns when a real event arrives.
+**Action:** When a thread uses `queue.get(timeout=...)` purely to occasionally poll a shutdown flag, setting the timeout to the maximum acceptable delay (e.g., 1.0s) minimizes idle CPU usage and prevents spin-loop effects without delaying event processing.
