@@ -158,7 +158,10 @@ class EventThread(threading.Thread):
 
         while not self._stop_event.is_set():
             try:
-                direction, sigtype, join, value = self.cip.event_queue.get(timeout=0.1)
+                # Use a 1.0s timeout instead of 0.1s to reduce idle CPU usage.
+                # This decreases the frequency of waking up the thread when there
+                # are no events, while still remaining responsive to stop events.
+                direction, sigtype, join, value = self.cip.event_queue.get(timeout=1.0)
             except queue.Empty:
                 continue
 
