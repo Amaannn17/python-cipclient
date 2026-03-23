@@ -311,7 +311,7 @@ class CIPSocketClient:
     def set(self, sigtype, join, value):
         """Set an outgoing join."""
         if sigtype == "d":
-            if (value != 0) and (value != 1):
+            if value not in (0, 1):
                 _logger.error(f"set(): '{value}' is not a valid digital signal state")
                 return
         elif sigtype == "a":
@@ -341,9 +341,9 @@ class CIPSocketClient:
 
     def get(self, sigtype, join, direction="in"):
         """Get the current value of a join."""
-        if (direction != "in") and (direction != "out"):
+        if direction not in ("in", "out"):
             raise ValueError(f"get(): '{direction}' is not a valid signal direction")
-        if (sigtype != "d") and (sigtype != "a") and (sigtype != "s"):
+        if sigtype not in ("d", "a", "s"):
             raise ValueError(f"get(): '{sigtype}' is not a valid signal type")
 
         with self.join_lock:
@@ -365,11 +365,11 @@ class CIPSocketClient:
 
     def subscribe(self, sigtype, join, callback, direction="in"):
         """Subscribe to join change events by specifying callback functions."""
-        if (direction != "in") and (direction != "out"):
+        if direction not in ("in", "out"):
             raise ValueError(
                 f"subscribe(): '{direction}' is not a valid signal direction"
             )
-        if (sigtype != "d") and (sigtype != "a") and (sigtype != "s"):
+        if sigtype not in ("d", "a", "s"):
             raise ValueError(f"subscribe(): '{sigtype}' is not a valid signal type")
 
         with self.join_lock:
