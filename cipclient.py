@@ -50,7 +50,8 @@ class SendThread(threading.Thread):
             try:
                 tx = self.cip.tx_queue.get(timeout=timeout)
                 if not self.cip.restart_connection:
-                    _logger.debug(f"TX: <{str(binascii.hexlify(tx), 'ascii')}>")
+                    if _logger.isEnabledFor(logging.DEBUG):
+                        _logger.debug(f"TX: <{str(binascii.hexlify(tx), 'ascii')}>")
                     try:
                         self.cip.socket.sendall(tx)
                     except socket.error:
@@ -105,7 +106,8 @@ class ReceiveThread(threading.Thread):
             try:
                 if self.cip.restart_connection is False:
                     rx = self.cip.socket.recv(4096)
-                    _logger.debug(f'RX: <{str(binascii.hexlify(rx), "ascii")}>')
+                    if _logger.isEnabledFor(logging.DEBUG):
+                        _logger.debug(f'RX: <{str(binascii.hexlify(rx), "ascii")}>')
 
                     position = 0
                     length = len(rx)
@@ -402,9 +404,10 @@ class CIPSocketClient:
 
     def _processPayload(self, ciptype, payload):
         """Process CIP packets."""
-        _logger.debug(
-            f'> Type 0x{ciptype:02x} <{str(binascii.hexlify(payload), "ascii")}>'
-        )
+        if _logger.isEnabledFor(logging.DEBUG):
+            _logger.debug(
+                f'> Type 0x{ciptype:02x} <{str(binascii.hexlify(payload), "ascii")}>'
+            )
         length = len(payload)
         restartRequired = False
 
@@ -453,13 +456,14 @@ class CIPSocketClient:
                     _logger.debug("! We don't know what to do with this update request")
             elif datatype == 0x08:
                 # date/time
-                cip_date = str(binascii.hexlify(payload[4:]), "ascii")
-                _logger.debug(
-                    f"  Received date/time from control processor <"
-                    f"{cip_date[2:4]}:{cip_date[4:6]}:"
-                    f"{cip_date[6:8]} {cip_date[8:10]}/"
-                    f"{cip_date[10:12]}/20{cip_date[12:]}>"
-                )
+                if _logger.isEnabledFor(logging.DEBUG):
+                    cip_date = str(binascii.hexlify(payload[4:]), "ascii")
+                    _logger.debug(
+                        f"  Received date/time from control processor <"
+                        f"{cip_date[2:4]}:{cip_date[4:6]}:"
+                        f"{cip_date[6:8]} {cip_date[8:10]}/"
+                        f"{cip_date[10:12]}/20{cip_date[12:]}>"
+                    )
             else:
                 # unexpected data packet
                 _logger.debug("! We don't know what to do with this data")
@@ -479,15 +483,17 @@ class CIPSocketClient:
             self.tx_queue.put(tx)
         elif ciptype == 0x02:
             # registration result
-            ipid_string = str(binascii.hexlify(self.ipid), "ascii")
-
             if length == 3 and payload == b"\xff\xff\x02":
+                ipid_string = str(binascii.hexlify(self.ipid), "ascii")
                 _logger.error(f"! The specified IPID (0x{ipid_string}) does not exist")
                 restartRequired = True
             elif length == 4 and payload == b"\x00\x00\x00\x1f":
-                _logger.debug(f"  Registered IPID 0x{ipid_string}")
+                if _logger.isEnabledFor(logging.DEBUG):
+                    ipid_string = str(binascii.hexlify(self.ipid), "ascii")
+                    _logger.debug(f"  Registered IPID 0x{ipid_string}")
                 self.tx_queue.put(b"\x05\x00\x05\x00\x00\x02\x03\x00")
             else:
+                ipid_string = str(binascii.hexlify(self.ipid), "ascii")
                 _logger.error(f"! Error registering IPID 0x{ipid_string}")
                 restartRequired = True
         elif ciptype == 0x03:
