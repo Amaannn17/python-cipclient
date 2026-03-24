@@ -50,7 +50,8 @@ class SendThread(threading.Thread):
             try:
                 tx = self.cip.tx_queue.get(timeout=timeout)
                 if not self.cip.restart_connection:
-                    _logger.debug(f"TX: <{str(binascii.hexlify(tx), 'ascii')}>")
+                    if _logger.isEnabledFor(logging.DEBUG):
+                        _logger.debug(f"TX: <{tx.hex()}>")
                     try:
                         self.cip.socket.sendall(tx)
                     except socket.error:
@@ -105,7 +106,8 @@ class ReceiveThread(threading.Thread):
             try:
                 if self.cip.restart_connection is False:
                     rx = self.cip.socket.recv(4096)
-                    _logger.debug(f'RX: <{str(binascii.hexlify(rx), "ascii")}>')
+                    if _logger.isEnabledFor(logging.DEBUG):
+                        _logger.debug(f"RX: <{rx.hex()}>")
 
                     position = 0
                     length = len(rx)
@@ -177,25 +179,26 @@ class EventThread(threading.Thread):
                 tx = bytearray(self.cip._cip_packet[sigtype])
                 cip_join = join - 1
                 if sigtype[0] == "d":
-                    packed_join = (cip_join // 256) + ((cip_join % 256) * 256)
                     if value == 0:
-                        packed_join |= 0x80
-                    tx += packed_join.to_bytes(2, "big")
+                        cip_join |= 0x8000
+                    tx.extend(cip_join.to_bytes(2, "little"))
                     if sigtype == "db":
                         with self.cip.buttons_lock:
                             if value == 1:
                                 self.cip.buttons_pressed[join] = tx
                             elif join in self.cip.buttons_pressed:
-                                self.cip.buttons_pressed.pop(join)
+                                self.cip.buttons_pressed.pop(join, None)
                 elif sigtype == "a":
-                    tx += cip_join.to_bytes(2, "big")
-                    tx += value.to_bytes(2, "big")
+                    tx.extend(cip_join.to_bytes(2, "big"))
+                    tx.extend(value.to_bytes(2, "big"))
                 elif sigtype == "s":
-                    tx[2] = 8 + len(value)
-                    tx[6] = 4 + len(value)
-                    tx += cip_join.to_bytes(2, "big")
-                    tx += b"\x03"
-                    tx += bytearray(value, "ascii")
+                    val_bytes = value.encode("ascii")
+                    len_val = len(val_bytes)
+                    tx[2] = 8 + len_val
+                    tx[6] = 4 + len_val
+                    tx.extend(cip_join.to_bytes(2, "big"))
+                    tx.extend(b"\x03")
+                    tx.extend(val_bytes)
                 if self.cip.connected is True and self.cip.restart_connection is False:
                     self.cip.tx_queue.put(tx)
 
@@ -402,9 +405,8 @@ class CIPSocketClient:
 
     def _processPayload(self, ciptype, payload):
         """Process CIP packets."""
-        _logger.debug(
-            f'> Type 0x{ciptype:02x} <{str(binascii.hexlify(payload), "ascii")}>'
-        )
+        if _logger.isEnabledFor(logging.DEBUG):
+            _logger.debug(f"> Type 0x{ciptype:02x} <{payload.hex()}>")
         length = len(payload)
         restartRequired = False
 
@@ -453,7 +455,7 @@ class CIPSocketClient:
                     _logger.debug("! We don't know what to do with this update request")
             elif datatype == 0x08:
                 # date/time
-                cip_date = str(binascii.hexlify(payload[4:]), "ascii")
+                cip_date = payload[4:].hex()
                 _logger.debug(
                     f"  Received date/time from control processor <"
                     f"{cip_date[2:4]}:{cip_date[4:6]}:"
@@ -479,7 +481,7 @@ class CIPSocketClient:
             self.tx_queue.put(tx)
         elif ciptype == 0x02:
             # registration result
-            ipid_string = str(binascii.hexlify(self.ipid), "ascii")
+            ipid_string = self.ipid.hex()
 
             if length == 3 and payload == b"\xff\xff\x02":
                 _logger.error(f"! The specified IPID (0x{ipid_string}) does not exist")
