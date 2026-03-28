@@ -173,7 +173,8 @@ class EventThread(threading.Thread):
                     self.cip.join[direction][sigtype[0]][join] = [
                         value,
                     ]
-            _logger.debug(f"  : {sigtype} {direction} {join} = {value}")
+            if _logger.isEnabledFor(logging.DEBUG):
+                _logger.debug(f"  : {sigtype} {direction} {join} = {value}")
 
             if direction == "out":
                 tx = bytearray(self.cip._cip_packet[sigtype])
@@ -422,12 +423,14 @@ class CIPSocketClient:
                 join = (((payload[5] & 0x7F) << 8) | payload[4]) + 1
                 state = ((payload[5] & 0x80) >> 7) ^ 0x01
                 self.event_queue.put(("in", "d", join, state))
-                _logger.debug(f"  Incoming Digital Join {join:04} = {state}")
+                if _logger.isEnabledFor(logging.DEBUG):
+                    _logger.debug(f"  Incoming Digital Join {join:04} = {state}")
             elif datatype == 0x14:
                 join = ((payload[4] << 8) | payload[5]) + 1
                 value = (payload[6] << 8) + payload[7]
                 self.event_queue.put(("in", "a", join, value))
-                _logger.debug(f"  Incoming Analog Join {join:04} = {value}")
+                if _logger.isEnabledFor(logging.DEBUG):
+                    _logger.debug(f"  Incoming Analog Join {join:04} = {value}")
             elif datatype == 0x03:
                 # update request
                 update_request_type = payload[4]
@@ -456,12 +459,13 @@ class CIPSocketClient:
             elif datatype == 0x08:
                 # date/time
                 cip_date = payload[4:].hex()
-                _logger.debug(
-                    f"  Received date/time from control processor <"
-                    f"{cip_date[2:4]}:{cip_date[4:6]}:"
-                    f"{cip_date[6:8]} {cip_date[8:10]}/"
-                    f"{cip_date[10:12]}/20{cip_date[12:]}>"
-                )
+                if _logger.isEnabledFor(logging.DEBUG):
+                    _logger.debug(
+                        f"  Received date/time from control processor <"
+                        f"{cip_date[2:4]}:{cip_date[4:6]}:"
+                        f"{cip_date[6:8]} {cip_date[8:10]}/"
+                        f"{cip_date[10:12]}/20{cip_date[12:]}>"
+                    )
             else:
                 # unexpected data packet
                 _logger.debug("! We don't know what to do with this data")
@@ -469,7 +473,8 @@ class CIPSocketClient:
             join = ((payload[5] << 8) | payload[6]) + 1
             value = str(payload[8:], "ascii")
             self.event_queue.put(("in", "s", join, value))
-            _logger.debug(f"  Incoming Serial Join {join:04} = {value}")
+            if _logger.isEnabledFor(logging.DEBUG):
+                _logger.debug(f"  Incoming Serial Join {join:04} = {value}")
         elif ciptype == 0x0F:
             # registration request
             _logger.debug("  Client registration request")
@@ -487,7 +492,8 @@ class CIPSocketClient:
                 _logger.error(f"! The specified IPID (0x{ipid_string}) does not exist")
                 restartRequired = True
             elif length == 4 and payload == b"\x00\x00\x00\x1f":
-                _logger.debug(f"  Registered IPID 0x{ipid_string}")
+                if _logger.isEnabledFor(logging.DEBUG):
+                    _logger.debug(f"  Registered IPID 0x{ipid_string}")
                 self.tx_queue.put(b"\x05\x00\x05\x00\x00\x02\x03\x00")
             else:
                 _logger.error(f"! Error registering IPID 0x{ipid_string}")
