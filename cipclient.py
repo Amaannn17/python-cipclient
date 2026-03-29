@@ -335,7 +335,7 @@ class CIPSocketClient:
                 _logger.error(f"set(): '{value}' is not a valid digital signal state")
                 return
         elif sigtype == "a":
-            if (type(value) is not int) or (value > 65535):
+            if not isinstance(value, int) or (value > 65535):
                 _logger.error(f"set(): '{value}' is not a valid analog signal value")
                 return
         elif sigtype == "s":
