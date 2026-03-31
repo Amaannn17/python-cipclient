@@ -4,3 +4,7 @@
 ## 2024-05-18 - String Interpolation evaluation in disabled logging statements
 **Learning:** In highly-frequent paths like socket recv loops, expensive f-string interpolations (like those calling byte-to-hex formatting routines) are evaluated BEFORE being passed to the `_logger.debug` call. If debug logging is disabled, the resulting formatted string is immediately discarded, meaning 100% of the CPU time spent formatting the string is wasted. Furthermore, standard `bytes.hex()` is significantly faster than `str(binascii.hexlify(data), 'ascii')`.
 **Action:** Guard expensive string constructions in log messages with `if _logger.isEnabledFor(logging.DEBUG):` to bypass evaluation entirely when debug logging is inactive, and use native `.hex()` for converting byte payloads.
+
+## 2024-05-18 - Eager f-string Evaluation in Hot Paths
+**Learning:** In Python, passing f-strings directly to `_logger.debug()` eagerly evaluates the string even when `logging.DEBUG` level is disabled, which introduces significant overhead in hot paths (e.g., in a network event loop).
+**Action:** When evaluating expensive strings (e.g., `value.hex()` or dynamic packet formats) inside hot paths, always wrap the logging statement with an `if _logger.isEnabledFor(logging.DEBUG):` check to avoid unnecessary formatting overhead.

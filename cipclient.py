@@ -173,7 +173,10 @@ class EventThread(threading.Thread):
                     self.cip.join[direction][sigtype[0]][join] = [
                         value,
                     ]
-            _logger.debug(f"  : {sigtype} {direction} {join} = {value}")
+
+            # Bolt: Prevent eager evaluation of f-string in hot path
+            if _logger.isEnabledFor(logging.DEBUG):
+                _logger.debug(f"  : {sigtype} {direction} {join} = {value}")
 
             if direction == "out":
                 tx = bytearray(self.cip._cip_packet[sigtype])
@@ -422,12 +425,16 @@ class CIPSocketClient:
                 join = (((payload[5] & 0x7F) << 8) | payload[4]) + 1
                 state = ((payload[5] & 0x80) >> 7) ^ 0x01
                 self.event_queue.put(("in", "d", join, state))
-                _logger.debug(f"  Incoming Digital Join {join:04} = {state}")
+                # Bolt: Prevent eager evaluation of f-string in hot path
+                if _logger.isEnabledFor(logging.DEBUG):
+                    _logger.debug(f"  Incoming Digital Join {join:04} = {state}")
             elif datatype == 0x14:
                 join = ((payload[4] << 8) | payload[5]) + 1
                 value = (payload[6] << 8) + payload[7]
                 self.event_queue.put(("in", "a", join, value))
-                _logger.debug(f"  Incoming Analog Join {join:04} = {value}")
+                # Bolt: Prevent eager evaluation of f-string in hot path
+                if _logger.isEnabledFor(logging.DEBUG):
+                    _logger.debug(f"  Incoming Analog Join {join:04} = {value}")
             elif datatype == 0x03:
                 # update request
                 update_request_type = payload[4]
@@ -469,7 +476,9 @@ class CIPSocketClient:
             join = ((payload[5] << 8) | payload[6]) + 1
             value = str(payload[8:], "ascii")
             self.event_queue.put(("in", "s", join, value))
-            _logger.debug(f"  Incoming Serial Join {join:04} = {value}")
+            # Bolt: Prevent eager evaluation of f-string in hot path
+            if _logger.isEnabledFor(logging.DEBUG):
+                _logger.debug(f"  Incoming Serial Join {join:04} = {value}")
         elif ciptype == 0x0F:
             # registration request
             _logger.debug("  Client registration request")
