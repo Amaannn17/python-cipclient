@@ -4,3 +4,7 @@
 ## 2024-05-18 - String Interpolation evaluation in disabled logging statements
 **Learning:** In highly-frequent paths like socket recv loops, expensive f-string interpolations (like those calling byte-to-hex formatting routines) are evaluated BEFORE being passed to the `_logger.debug` call. If debug logging is disabled, the resulting formatted string is immediately discarded, meaning 100% of the CPU time spent formatting the string is wasted. Furthermore, standard `bytes.hex()` is significantly faster than `str(binascii.hexlify(data), 'ascii')`.
 **Action:** Guard expensive string constructions in log messages with `if _logger.isEnabledFor(logging.DEBUG):` to bypass evaluation entirely when debug logging is inactive, and use native `.hex()` for converting byte payloads.
+
+## 2026-04-01 - Prevent DoS from unhandled encode/decode errors in serial string processing
+**Learning:** When dealing with network data, unhandled errors during decoding (`str(payload, 'ascii')`) and encoding (`value.encode('ascii')`) can cause the application thread to crash when it encounters malformed packets. This can lead to an accidental Denial of Service (DoS) for the client.
+**Action:** When performing `str(..., 'ascii')` and `.encode('ascii')` on network data, always explicitly include `errors="replace"` to handle potential malformed inputs safely without crashing the execution path.
