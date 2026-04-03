@@ -130,7 +130,9 @@ class ReceiveThread(threading.Thread):
                         self.cip._processPayload(packet_type, payload)
                         position += packet_length
                 else:
-                    time.sleep(0.1)
+                    # Use a 1.0s sleep instead of 0.1s to reduce idle CPU wakeups by 10x
+                    # when connection is disconnected or restarting.
+                    time.sleep(1.0)
 
             except (socket.error, socket.timeout) as e:
                 if e.args[0] != "timed out":
@@ -160,7 +162,9 @@ class EventThread(threading.Thread):
 
         while not self._stop_event.is_set():
             try:
-                direction, sigtype, join, value = self.cip.event_queue.get(timeout=0.1)
+                # Use a 1.0s timeout instead of 0.1s to reduce idle CPU wakeups by 10x
+                # while still remaining responsive to thread stop events.
+                direction, sigtype, join, value = self.cip.event_queue.get(timeout=1.0)
             except queue.Empty:
                 continue
 
