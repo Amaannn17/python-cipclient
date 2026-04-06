@@ -104,7 +104,7 @@ class ReceiveThread(threading.Thread):
 
         while not self._stop_event.is_set():
             try:
-                if self.cip.restart_connection is False:
+                if not self.cip.restart_connection:
                     rx = self.cip.socket.recv(4096)
                     if _logger.isEnabledFor(logging.DEBUG):
                         _logger.debug(f"RX: <{rx.hex()}>")
@@ -165,12 +165,14 @@ class EventThread(threading.Thread):
                 continue
 
             with self.cip.join_lock:
-                try:
-                    self.cip.join[direction][sigtype[0]][join][0] = value
-                    for callback in self.cip.join[direction][sigtype[0]][join][1:]:
+                target_dict = self.cip.join[direction][sigtype[0]]
+                if join in target_dict:
+                    entry = target_dict[join]
+                    entry[0] = value
+                    for callback in entry[1:]:
                         callback(sigtype[0], join, value)
-                except KeyError:
-                    self.cip.join[direction][sigtype[0]][join] = [
+                else:
+                    target_dict[join] = [
                         value,
                     ]
             if _logger.isEnabledFor(logging.DEBUG):
@@ -200,7 +202,7 @@ class EventThread(threading.Thread):
                     tx.extend(cip_join.to_bytes(2, "big"))
                     tx.extend(b"\x03")
                     tx.extend(val_bytes)
-                if self.cip.connected is True and self.cip.restart_connection is False:
+                if self.cip.connected and not self.cip.restart_connection:
                     self.cip.tx_queue.put(tx)
 
         _logger.debug("stopped")
@@ -234,7 +236,7 @@ class ConnectionThread(threading.Thread):
                 self.cip.socket.connect((self.cip.host, self.cip.port))
             except socket.error:
                 self.cip.socket.close()
-                if warning_posted is False:
+                if not warning_posted:
                     _logger.debug(
                         f"attempting to connect to {self.cip.host}:{self.cip.port}, "
                         "no success yet"
@@ -250,10 +252,7 @@ class ConnectionThread(threading.Thread):
                     self.cip.send_thread.start()
                     self.cip.receive_thread.start()
                 self.cip.restart_connection = False
-                while (
-                    not self._stop_event.is_set()
-                    and self.cip.restart_connection is False
-                ):
+                while not self._stop_event.is_set() and not self.cip.restart_connection:
                     time.sleep(1)
                 if not self._stop_event.is_set():
                     self.cip.connected = False
@@ -379,7 +378,7 @@ class CIPSocketClient:
 
     def update_request(self):
         """Send an update request to the control processor."""
-        if self.connected is True:
+        if self.connected:
             self.tx_queue.put(b"\x05\x00\x05\x00\x00\x02\x03\x00")
         else:
             _logger.debug("update_request(): not currently connected")
@@ -471,7 +470,7 @@ class CIPSocketClient:
                 _logger.debug("! We don't know what to do with this data")
         elif ciptype == 0x12:
             join = ((payload[5] << 8) | payload[6]) + 1
-            value = str(payload[8:], "ascii")
+            value = payload[8:].decode("ascii", errors="replace")
             self.event_queue.put(("in", "s", join, value))
             if _logger.isEnabledFor(logging.DEBUG):
                 _logger.debug(f"  Incoming Serial Join {join:04} = {value}")
