@@ -71,14 +71,12 @@ class SendThread(threading.Thread):
                 if now - last_buttons_time >= 0.5:
                     if self.cip.buttons_pressed:
                         with self.cip.buttons_lock:
-                            for join in self.cip.buttons_pressed:
-                                try:
-                                    if self.cip.join["out"]["d"][join][0] == 1:
-                                        self.cip.tx_queue.put(
-                                            self.cip.buttons_pressed[join]
-                                        )
-                                except KeyError:
-                                    pass
+                            # Performance optimization: Hoist nested dict lookup out of the loop and use .items()
+                            # to avoid redundant key-based lookups and slow KeyError catching logic.
+                            out_d_joins = self.cip.join["out"]["d"]
+                            for join, tx in self.cip.buttons_pressed.items():
+                                if join in out_d_joins and out_d_joins[join][0] == 1:
+                                    self.cip.tx_queue.put(tx)
                     last_buttons_time = now
 
         _logger.debug("stopped")
@@ -165,12 +163,15 @@ class EventThread(threading.Thread):
                 continue
 
             with self.cip.join_lock:
-                try:
-                    self.cip.join[direction][sigtype[0]][join][0] = value
-                    for callback in self.cip.join[direction][sigtype[0]][join][1:]:
+                # Performance optimization: cache nested dict access and use fast 'in' membership check
+                # rather than catching KeyError in the hot path.
+                target_dict = self.cip.join[direction][sigtype[0]]
+                if join in target_dict:
+                    target_dict[join][0] = value
+                    for callback in target_dict[join][1:]:
                         callback(sigtype[0], join, value)
-                except KeyError:
-                    self.cip.join[direction][sigtype[0]][join] = [
+                else:
+                    target_dict[join] = [
                         value,
                     ]
             if _logger.isEnabledFor(logging.DEBUG):
@@ -471,7 +472,8 @@ class CIPSocketClient:
                 _logger.debug("! We don't know what to do with this data")
         elif ciptype == 0x12:
             join = ((payload[5] << 8) | payload[6]) + 1
-            value = str(payload[8:], "ascii")
+            # Performance optimization: decode is significantly faster than str() in hot loops.
+            value = payload[8:].decode("ascii", errors="replace")
             self.event_queue.put(("in", "s", join, value))
             if _logger.isEnabledFor(logging.DEBUG):
                 _logger.debug(f"  Incoming Serial Join {join:04} = {value}")
