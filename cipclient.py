@@ -165,12 +165,13 @@ class EventThread(threading.Thread):
                 continue
 
             with self.cip.join_lock:
-                try:
-                    self.cip.join[direction][sigtype[0]][join][0] = value
-                    for callback in self.cip.join[direction][sigtype[0]][join][1:]:
+                target_dict = self.cip.join[direction][sigtype[0]]
+                if join in target_dict:
+                    target_dict[join][0] = value
+                    for callback in target_dict[join][1:]:
                         callback(sigtype[0], join, value)
-                except KeyError:
-                    self.cip.join[direction][sigtype[0]][join] = [
+                else:
+                    target_dict[join] = [
                         value,
                     ]
             if _logger.isEnabledFor(logging.DEBUG):
