@@ -32,15 +32,17 @@ class SendThread(threading.Thread):
 
             if self.cip.connected and not self.cip.restart_connection:
                 # Calculate dynamic timeout based on next scheduled event
-                time_until_heartbeat = max(0, 15.0 - (now - last_heartbeat_time))
+                timeout = 15.0 - (now - last_heartbeat_time)
                 if self.cip.buttons_pressed:
-                    time_until_buttons = max(0, 0.5 - (now - last_buttons_time))
-                else:
-                    time_until_buttons = float("inf")
+                    tb = 0.5 - (now - last_buttons_time)
+                    if tb < timeout:
+                        timeout = tb
 
-                timeout = min(time_until_heartbeat, time_until_buttons)
                 # Cap at 1.0s to ensure responsiveness to thread stop events
-                timeout = min(timeout, 1.0)
+                if timeout > 1.0:
+                    timeout = 1.0
+                elif timeout < 0:
+                    timeout = 0
             else:
                 # If disconnected, just wait 1.0s for the next check/event
                 timeout = 1.0
