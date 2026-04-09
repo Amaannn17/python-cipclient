@@ -71,12 +71,10 @@ class SendThread(threading.Thread):
                 if now - last_buttons_time >= 0.5:
                     if self.cip.buttons_pressed:
                         with self.cip.buttons_lock:
-                            for join in self.cip.buttons_pressed:
+                            for join, tx in self.cip.buttons_pressed.items():
                                 try:
                                     if self.cip.join["out"]["d"][join][0] == 1:
-                                        self.cip.tx_queue.put(
-                                            self.cip.buttons_pressed[join]
-                                        )
+                                        self.cip.tx_queue.put(tx)
                                 except KeyError:
                                     pass
                     last_buttons_time = now
@@ -193,7 +191,7 @@ class EventThread(threading.Thread):
                     tx.extend(cip_join.to_bytes(2, "big"))
                     tx.extend(value.to_bytes(2, "big"))
                 elif sigtype == "s":
-                    val_bytes = value.encode("ascii")
+                    val_bytes = value.encode("ascii", errors="replace")
                     len_val = len(val_bytes)
                     tx[2] = 8 + len_val
                     tx[6] = 4 + len_val
@@ -448,8 +446,8 @@ class CIPSocketClient:
                     self.connected = True
                     with self.join_lock:
                         for sigtype, joins in self.join["out"].items():
-                            for j in joins:
-                                self.set(sigtype, j, joins[j][0])
+                            for j, val_list in joins.items():
+                                self.set(sigtype, j, val_list[0])
                 elif update_request_type == 0x1D:
                     # end-of-query acknowledgement
                     _logger.debug("  End-of-query acknowledgement")
@@ -471,7 +469,7 @@ class CIPSocketClient:
                 _logger.debug("! We don't know what to do with this data")
         elif ciptype == 0x12:
             join = ((payload[5] << 8) | payload[6]) + 1
-            value = str(payload[8:], "ascii")
+            value = payload[8:].decode("ascii", errors="replace")
             self.event_queue.put(("in", "s", join, value))
             if _logger.isEnabledFor(logging.DEBUG):
                 _logger.debug(f"  Incoming Serial Join {join:04} = {value}")
