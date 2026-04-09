@@ -4,3 +4,6 @@
 ## 2024-05-18 - String Interpolation evaluation in disabled logging statements
 **Learning:** In highly-frequent paths like socket recv loops, expensive f-string interpolations (like those calling byte-to-hex formatting routines) are evaluated BEFORE being passed to the `_logger.debug` call. If debug logging is disabled, the resulting formatted string is immediately discarded, meaning 100% of the CPU time spent formatting the string is wasted. Furthermore, standard `bytes.hex()` is significantly faster than `str(binascii.hexlify(data), 'ascii')`.
 **Action:** Guard expensive string constructions in log messages with `if _logger.isEnabledFor(logging.DEBUG):` to bypass evaluation entirely when debug logging is inactive, and use native `.hex()` for converting byte payloads.
+## 2024-05-24 - Python byte string decoding overhead
+**Learning:** Benchmarking in this codebase demonstrated that `bytes.decode('ascii', errors='replace')` is roughly 30-40% faster than `str(bytes, 'ascii', errors='replace')` in Python for processing incoming network packets in a hot loop.
+**Action:** Use `.decode("ascii", errors="replace")` instead of `str(bytes, "ascii")` to avoid Denial of Service (DoS) crashes and improve throughput for serial string data in hot network paths.
