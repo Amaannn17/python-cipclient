@@ -4,3 +4,6 @@
 ## 2024-05-18 - String Interpolation evaluation in disabled logging statements
 **Learning:** In highly-frequent paths like socket recv loops, expensive f-string interpolations (like those calling byte-to-hex formatting routines) are evaluated BEFORE being passed to the `_logger.debug` call. If debug logging is disabled, the resulting formatted string is immediately discarded, meaning 100% of the CPU time spent formatting the string is wasted. Furthermore, standard `bytes.hex()` is significantly faster than `str(binascii.hexlify(data), 'ascii')`.
 **Action:** Guard expensive string constructions in log messages with `if _logger.isEnabledFor(logging.DEBUG):` to bypass evaluation entirely when debug logging is inactive, and use native `.hex()` for converting byte payloads.
+## 2026-04-10 - Native inline comparisons vs min()/max()
+**Learning:** In Python hot paths (such as the `SendThread` polling loop), avoid built-in functions like `min()` and `max()`, and unnecessary object instantiation like `float('inf')`. Using native inline comparisons (`<`, `>`, `if`/`elif`) is significantly faster and reduces function call overhead.
+**Action:** When working in polling loops, use standard `if`/`else` control flow instead of `min()`/`max()` to calculate timeouts.
