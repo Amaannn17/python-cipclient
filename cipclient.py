@@ -71,12 +71,11 @@ class SendThread(threading.Thread):
                 if now - last_buttons_time >= 0.5:
                     if self.cip.buttons_pressed:
                         with self.cip.buttons_lock:
-                            for join in self.cip.buttons_pressed:
+                            # Use .items() to avoid double dictionary lookup
+                            for join, tx in self.cip.buttons_pressed.items():
                                 try:
                                     if self.cip.join["out"]["d"][join][0] == 1:
-                                        self.cip.tx_queue.put(
-                                            self.cip.buttons_pressed[join]
-                                        )
+                                        self.cip.tx_queue.put(tx)
                                 except KeyError:
                                     pass
                     last_buttons_time = now
