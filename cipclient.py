@@ -193,7 +193,7 @@ class EventThread(threading.Thread):
                     tx.extend(cip_join.to_bytes(2, "big"))
                     tx.extend(value.to_bytes(2, "big"))
                 elif sigtype == "s":
-                    val_bytes = value.encode("ascii")
+                    val_bytes = value.encode("ascii", errors="replace")
                     len_val = len(val_bytes)
                     tx[2] = 8 + len_val
                     tx[6] = 4 + len_val
@@ -471,7 +471,7 @@ class CIPSocketClient:
                 _logger.debug("! We don't know what to do with this data")
         elif ciptype == 0x12:
             join = ((payload[5] << 8) | payload[6]) + 1
-            value = str(payload[8:], "ascii")
+            value = str(payload[8:], "ascii", errors="replace")
             self.event_queue.put(("in", "s", join, value))
             if _logger.isEnabledFor(logging.DEBUG):
                 _logger.debug(f"  Incoming Serial Join {join:04} = {value}")
