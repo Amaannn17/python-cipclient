@@ -486,16 +486,17 @@ class CIPSocketClient:
             self.tx_queue.put(tx)
         elif ciptype == 0x02:
             # registration result
-            ipid_string = self.ipid.hex()
-
             if length == 3 and payload == b"\xff\xff\x02":
+                ipid_string = self.ipid.hex()
                 _logger.error(f"! The specified IPID (0x{ipid_string}) does not exist")
                 restartRequired = True
             elif length == 4 and payload == b"\x00\x00\x00\x1f":
                 if _logger.isEnabledFor(logging.DEBUG):
+                    ipid_string = self.ipid.hex()
                     _logger.debug(f"  Registered IPID 0x{ipid_string}")
                 self.tx_queue.put(b"\x05\x00\x05\x00\x00\x02\x03\x00")
             else:
+                ipid_string = self.ipid.hex()
                 _logger.error(f"! Error registering IPID 0x{ipid_string}")
                 restartRequired = True
         elif ciptype == 0x03:
