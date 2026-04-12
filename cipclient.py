@@ -130,7 +130,8 @@ class ReceiveThread(threading.Thread):
                         self.cip._processPayload(packet_type, payload)
                         position += packet_length
                 else:
-                    time.sleep(0.1)
+                    # Wait efficiently instead of a hard sleep loop
+                    self._stop_event.wait(1.0)
 
             except (socket.error, socket.timeout) as e:
                 if e.args[0] != "timed out":
@@ -160,7 +161,9 @@ class EventThread(threading.Thread):
 
         while not self._stop_event.is_set():
             try:
-                direction, sigtype, join, value = self.cip.event_queue.get(timeout=0.1)
+                # Use a 1.0s timeout to minimize idle CPU wakeups while
+                # remaining responsive to thread stop events
+                direction, sigtype, join, value = self.cip.event_queue.get(timeout=1.0)
             except queue.Empty:
                 continue
 
