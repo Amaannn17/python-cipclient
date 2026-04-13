@@ -71,12 +71,10 @@ class SendThread(threading.Thread):
                 if now - last_buttons_time >= 0.5:
                     if self.cip.buttons_pressed:
                         with self.cip.buttons_lock:
-                            for join in self.cip.buttons_pressed:
+                            for join, tx_data in self.cip.buttons_pressed.items():
                                 try:
                                     if self.cip.join["out"]["d"][join][0] == 1:
-                                        self.cip.tx_queue.put(
-                                            self.cip.buttons_pressed[join]
-                                        )
+                                        self.cip.tx_queue.put(tx_data)
                                 except KeyError:
                                     pass
                     last_buttons_time = now
@@ -113,19 +111,20 @@ class ReceiveThread(threading.Thread):
                     length = len(rx)
 
                     while position < length:
-                        if (length - position) < 4:
+                        rem = length - position
+                        if rem < 4:
                             _logger.warning("Packet is too short")
                             break
 
-                        payload_length = (rx[position + 1] << 8) + rx[position + 2]
+                        payload_length = (rx[position + 1] << 8) | rx[position + 2]
                         packet_length = payload_length + 3
 
-                        if (length - position) < packet_length:
+                        if rem < packet_length:
                             _logger.warning("Packet length mismatch")
                             break
 
                         packet_type = rx[position]
-                        payload = rx[position + 3 : position + 3 + payload_length]
+                        payload = rx[position + 3 : position + packet_length]
 
                         self.cip._processPayload(packet_type, payload)
                         position += packet_length
@@ -448,8 +447,8 @@ class CIPSocketClient:
                     self.connected = True
                     with self.join_lock:
                         for sigtype, joins in self.join["out"].items():
-                            for j in joins:
-                                self.set(sigtype, j, joins[j][0])
+                            for j, join_data in joins.items():
+                                self.set(sigtype, j, join_data[0])
                 elif update_request_type == 0x1D:
                     # end-of-query acknowledgement
                     _logger.debug("  End-of-query acknowledgement")
