@@ -448,8 +448,9 @@ class CIPSocketClient:
                     self.connected = True
                     with self.join_lock:
                         for sigtype, joins in self.join["out"].items():
-                            for j in joins:
-                                self.set(sigtype, j, joins[j][0])
+                            for j, callbacks in joins.items():
+                                # Bolt: using .items() avoids repeated key lookups in hot path
+                                self.set(sigtype, j, callbacks[0])
                 elif update_request_type == 0x1D:
                     # end-of-query acknowledgement
                     _logger.debug("  End-of-query acknowledgement")
