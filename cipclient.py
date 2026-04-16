@@ -71,12 +71,11 @@ class SendThread(threading.Thread):
                 if now - last_buttons_time >= 0.5:
                     if self.cip.buttons_pressed:
                         with self.cip.buttons_lock:
-                            for join in self.cip.buttons_pressed:
+                            # Bolt: Use .items() to avoid dictionary lookups in hot loop
+                            for join, tx in self.cip.buttons_pressed.items():
                                 try:
                                     if self.cip.join["out"]["d"][join][0] == 1:
-                                        self.cip.tx_queue.put(
-                                            self.cip.buttons_pressed[join]
-                                        )
+                                        self.cip.tx_queue.put(tx)
                                 except KeyError:
                                     pass
                     last_buttons_time = now
@@ -448,8 +447,9 @@ class CIPSocketClient:
                     self.connected = True
                     with self.join_lock:
                         for sigtype, joins in self.join["out"].items():
-                            for j in joins:
-                                self.set(sigtype, j, joins[j][0])
+                            # Bolt: Use .items() to avoid dictionary lookups in hot loop
+                            for j, j_val in joins.items():
+                                self.set(sigtype, j, j_val[0])
                 elif update_request_type == 0x1D:
                     # end-of-query acknowledgement
                     _logger.debug("  End-of-query acknowledgement")
