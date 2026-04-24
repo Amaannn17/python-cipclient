@@ -4,3 +4,6 @@
 ## 2024-05-18 - String Interpolation evaluation in disabled logging statements
 **Learning:** In highly-frequent paths like socket recv loops, expensive f-string interpolations (like those calling byte-to-hex formatting routines) are evaluated BEFORE being passed to the `_logger.debug` call. If debug logging is disabled, the resulting formatted string is immediately discarded, meaning 100% of the CPU time spent formatting the string is wasted. Furthermore, standard `bytes.hex()` is significantly faster than `str(binascii.hexlify(data), 'ascii')`.
 **Action:** Guard expensive string constructions in log messages with `if _logger.isEnabledFor(logging.DEBUG):` to bypass evaluation entirely when debug logging is inactive, and use native `.hex()` for converting byte payloads.
+## 2026-04-24 - Optimize loop dictionary lookups using .items()
+**Learning:** In hot loops like end-of-query and button polling, extracting dictionary values using keys inside the loop (e.g., `joins[j][0]`) incurs measurable overhead in Python. Leveraging `for key, value in dictionary.items():` is significantly faster and cleaner, as it bypasses the repeated deep hash lookups.
+**Action:** Use `.items()` when both keys and values of a dictionary are needed in a performance-sensitive path to avoid the overhead of retrieving values by key.
