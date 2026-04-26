@@ -4,3 +4,6 @@
 ## 2024-05-18 - String Interpolation evaluation in disabled logging statements
 **Learning:** In highly-frequent paths like socket recv loops, expensive f-string interpolations (like those calling byte-to-hex formatting routines) are evaluated BEFORE being passed to the `_logger.debug` call. If debug logging is disabled, the resulting formatted string is immediately discarded, meaning 100% of the CPU time spent formatting the string is wasted. Furthermore, standard `bytes.hex()` is significantly faster than `str(binascii.hexlify(data), 'ascii')`.
 **Action:** Guard expensive string constructions in log messages with `if _logger.isEnabledFor(logging.DEBUG):` to bypass evaluation entirely when debug logging is inactive, and use native `.hex()` for converting byte payloads.
+## 2024-05-19 - Dictionary iteration performance in hot paths
+**Learning:** In high-frequency hot paths like socket receive loops (e.g., handling End-of-query 0x1C packets) and send loops (e.g., polling `buttons_pressed`), iterating over dictionary keys and then doing a lookup by key (`dict[key]`) incurs unnecessary hashing and lookup overhead.
+**Action:** Always prefer `for key, value in dict.items():` over `for key in dict:` when both the key and the value are needed, especially in performance-critical loops.
