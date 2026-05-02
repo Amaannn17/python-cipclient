@@ -129,7 +129,8 @@ class ReceiveThread(threading.Thread):
                         self.cip._processPayload(packet_type, payload)
                         position += packet_length
                 else:
-                    time.sleep(0.1)
+                    # ⚡ Bolt: Use threading.Event.wait instead of time.sleep to improve shutdown latency
+                    self._stop_event.wait(0.1)
 
             except (socket.error, socket.timeout) as e:
                 if e.args[0] != "timed out":
@@ -240,7 +241,8 @@ class ConnectionThread(threading.Thread):
                     )
                     warning_posted = True
                 if not self._stop_event.is_set():
-                    time.sleep(10)
+                    # ⚡ Bolt: Use threading.Event.wait instead of time.sleep to improve shutdown latency
+                    self._stop_event.wait(10)
             else:
                 warning_posted = False
                 _logger.debug(f"connected to {self.cip.host}:{self.cip.port}")
@@ -253,12 +255,14 @@ class ConnectionThread(threading.Thread):
                     not self._stop_event.is_set()
                     and self.cip.restart_connection is False
                 ):
-                    time.sleep(1)
+                    # ⚡ Bolt: Use threading.Event.wait instead of time.sleep to improve shutdown latency
+                    self._stop_event.wait(1)
                 if not self._stop_event.is_set():
                     self.cip.connected = False
                     self.cip.socket.close()
                     _logger.debug(f"lost connection to {self.cip.host}:{self.cip.port}")
-                    time.sleep(10)
+                    # ⚡ Bolt: Use threading.Event.wait instead of time.sleep to improve shutdown latency
+                    self._stop_event.wait(10)
                 else:
                     self.cip.send_thread.join()
                     self.cip.event_thread.join()
