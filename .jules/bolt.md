@@ -7,3 +7,6 @@
 ## 2024-05-19 - Dictionary iteration performance overhead
 **Learning:** Benchmarking confirmed that the 'End-of-query' (0x1C update request) processing path and the 'buttons_pressed' polling loop in `cipclient.py` are hot paths where using `.items()` for dictionary iteration significantly reduces overhead. When doing `for k in d: v = d[k]`, Python must re-hash the key and traverse the dict table again. Doing `for k, v in d.items():` unpacks the key and value simultaneously, avoiding the lookup cost entirely and yielding measurable performance gains in high-frequency loop execution.
 **Action:** In high-frequency loops or packet processing logic, prefer using `.items()` for dictionary iteration to avoid the overhead of repeated key-based lookups when both key and value are needed.
+## 2024-05-18 - Replacing `time.sleep` with `Event.wait` for Thread Shutdown
+**Learning:** In thread loops that poll a stop event, using `time.sleep(timeout)` causes the thread to blindly block for the entire timeout duration even if the stop event is signaled. This can artificially delay thread shutdown by seconds (e.g., up to 10 seconds in `ConnectionThread`).
+**Action:** Always prefer `self._stop_event.wait(timeout)` over `time.sleep(timeout)` in polling loops to allow immediate, responsive thread termination when the stop event is set.
