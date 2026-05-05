@@ -7,3 +7,7 @@
 ## 2024-05-19 - Dictionary iteration performance overhead
 **Learning:** Benchmarking confirmed that the 'End-of-query' (0x1C update request) processing path and the 'buttons_pressed' polling loop in `cipclient.py` are hot paths where using `.items()` for dictionary iteration significantly reduces overhead. When doing `for k in d: v = d[k]`, Python must re-hash the key and traverse the dict table again. Doing `for k, v in d.items():` unpacks the key and value simultaneously, avoiding the lookup cost entirely and yielding measurable performance gains in high-frequency loop execution.
 **Action:** In high-frequency loops or packet processing logic, prefer using `.items()` for dictionary iteration to avoid the overhead of repeated key-based lookups when both key and value are needed.
+
+## 2024-05-14 - [Local Assignment Overhead in Python]
+**Learning:** Contrary to previous assumptions, benchmarking `EventThread.run` reveals that caching the final leaf reference (e.g., `join_data = self.cip.join[direction][sigtype[0]][join]`) in a local variable is actually slower (adds overhead) than direct deep access or using a `try...except KeyError` block. The local assignment overhead outweighs the reduction in hash calculations for these operations in this codebase.
+**Action:** Avoid caching nested dictionary leaf references in local variables as a micro-optimization in hot paths, as it actually degrades performance in CPython.
