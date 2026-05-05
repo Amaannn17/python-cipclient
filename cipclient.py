@@ -165,8 +165,10 @@ class EventThread(threading.Thread):
 
             with self.cip.join_lock:
                 try:
-                    self.cip.join[direction][sigtype[0]][join][0] = value
-                    for callback in self.cip.join[direction][sigtype[0]][join][1:]:
+                    # ⚡ Bolt: Cache leaf reference to avoid redundant deep dictionary lookups
+                    join_data = self.cip.join[direction][sigtype[0]][join]
+                    join_data[0] = value
+                    for callback in join_data[1:]:
                         callback(sigtype[0], join, value)
                 except KeyError:
                     self.cip.join[direction][sigtype[0]][join] = [
