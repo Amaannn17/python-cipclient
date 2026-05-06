@@ -181,7 +181,9 @@ class EventThread(threading.Thread):
                 if sigtype[0] == "d":
                     if value == 0:
                         cip_join |= 0x8000
-                    tx.extend(cip_join.to_bytes(2, "little"))
+                    # ⚡ Bolt: Use .append() instead of .extend(to_bytes()) for performance
+                    tx.append(cip_join & 0xFF)
+                    tx.append(cip_join >> 8)
                     if sigtype == "db":
                         with self.cip.buttons_lock:
                             if value == 1:
@@ -189,15 +191,20 @@ class EventThread(threading.Thread):
                             elif join in self.cip.buttons_pressed:
                                 self.cip.buttons_pressed.pop(join, None)
                 elif sigtype == "a":
-                    tx.extend(cip_join.to_bytes(2, "big"))
-                    tx.extend(value.to_bytes(2, "big"))
+                    # ⚡ Bolt: Use .append() instead of .extend(to_bytes()) for performance
+                    tx.append(cip_join >> 8)
+                    tx.append(cip_join & 0xFF)
+                    tx.append(value >> 8)
+                    tx.append(value & 0xFF)
                 elif sigtype == "s":
                     val_bytes = value.encode("ascii")
                     len_val = len(val_bytes)
                     tx[2] = 8 + len_val
                     tx[6] = 4 + len_val
-                    tx.extend(cip_join.to_bytes(2, "big"))
-                    tx.extend(b"\x03")
+                    # ⚡ Bolt: Use .append() instead of .extend(to_bytes()) for performance
+                    tx.append(cip_join >> 8)
+                    tx.append(cip_join & 0xFF)
+                    tx.append(3)  # b"\x03" is integer 3
                     tx.extend(val_bytes)
                 if self.cip.connected is True and self.cip.restart_connection is False:
                     self.cip.tx_queue.put(tx)
@@ -419,13 +426,15 @@ class CIPSocketClient:
 
             if datatype == 0x00:
                 # digital join
-                join = (((payload[5] & 0x7F) << 8) | payload[4]) + 1
+                # ⚡ Bolt: Use `+` instead of `|` for performance
+                join = (((payload[5] & 0x7F) << 8) + payload[4]) + 1
                 state = ((payload[5] & 0x80) >> 7) ^ 0x01
                 self.event_queue.put(("in", "d", join, state))
                 if _logger.isEnabledFor(logging.DEBUG):
                     _logger.debug(f"  Incoming Digital Join {join:04} = {state}")
             elif datatype == 0x14:
-                join = ((payload[4] << 8) | payload[5]) + 1
+                # ⚡ Bolt: Use `+` instead of `|` for performance
+                join = ((payload[4] << 8) + payload[5]) + 1
                 value = (payload[6] << 8) + payload[7]
                 self.event_queue.put(("in", "a", join, value))
                 if _logger.isEnabledFor(logging.DEBUG):
@@ -470,7 +479,8 @@ class CIPSocketClient:
                 # unexpected data packet
                 _logger.debug("! We don't know what to do with this data")
         elif ciptype == 0x12:
-            join = ((payload[5] << 8) | payload[6]) + 1
+            # ⚡ Bolt: Use `+` instead of `|` for performance
+            join = ((payload[5] << 8) + payload[6]) + 1
             value = str(payload[8:], "ascii")
             self.event_queue.put(("in", "s", join, value))
             if _logger.isEnabledFor(logging.DEBUG):
